@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub 個人檔案</title>
+</head>
+<body>
+    <h2>歡迎, {{ user.username }}!</h2>
+
+    <img src="{{ user.avatar_url }}" alt="頭像" width="100">
+
+    <p><strong>電子郵件地址：</strong> {{ user.email }}</p>
+
+    <h3>Repositories:</h3>
+    <ul>
+        {% for repo in repos %}
+            <li>
+                <a href="{{ repo.html_url }}" target="_blank">{{ repo.name }}</a>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <!-- 分頁 -->
+    <div>
+        {% if page > 1 %}
+            <a href="{{ url_for('profile', page=page - 1) }}">上一頁</a>
+        {% endif %}
+
+        {% for p in range(max(1, page - 2), min(total_pages + 1, page + 3)) %}
+            {% if p == page %}
+                <strong>{{ p }}</strong> 
+            {% else %}
+                <a href="{{ url_for('profile', page=p) }}">{{ p }}</a> 
+            {% endif %}
+        {% endfor %}
+
+        {% if page < total_pages %}
+            <a href="{{ url_for('profile', page=page + 1) }}">下一頁</a>
+        {% endif %}
+    </div>
+
+    <a href="{{ url_for('logout') }}">
+        <button>登出</button>
+    </a>
+</body>
+</html>

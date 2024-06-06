@@ -3,9 +3,6 @@ from flask import Flask, redirect, url_for, session, request, render_template
 from requests_oauthlib import OAuth2Session
 from peewee import *
 
-# 設定環境變數
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-
 # 設定 Flask app
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -24,7 +21,7 @@ class BaseModel(Model):
 class User(BaseModel):
     github_id = IntegerField(unique=True)
     username = CharField(unique=True)
-    email = CharField()
+    email = CharField(null=True)
     avatar_url = CharField()
 
     class Meta:
@@ -36,8 +33,8 @@ db.connect()
 db.create_tables([User], safe=True)
 
 # 設定 GitHub OAuth2 資訊
-GITHUB_CLIENT_ID = 'YOUR_GITHUB_CLIENT_ID'
-GITHUB_CLIENT_SECRET = 'YOUR_GITHUB_CLIENT_SECRET'
+GITHUB_CLIENT_ID = 'yourid'
+GITHUB_CLIENT_SECRET = 'yoursecret'
 AUTHORIZATION_BASE_URL = 'https://github.com/login/oauth/authorize'
 TOKEN_URL = 'https://github.com/login/oauth/access_token'
 
@@ -85,7 +82,7 @@ def callback_github():
             # 檢查使用者是否存在，若不存在則創建
             user, created = User.get_or_create(github_id=user_data['id'], defaults={
                 'username': user_data['login'],
-                'email': user_data['email'],
+                'email': user_data.get('email', None),  # 使用 get 方法，若 email 不存在，則使用 None
                 'avatar_url': user_data['avatar_url']
             })
 
@@ -95,18 +92,34 @@ def callback_github():
     return redirect(url_for('index'))
 
 
-# 使用者資訊頁面
-@app.route('/profile')
-def profile():
+@app.route('/profile', defaults={'page': 1})
+@app.route('/profile/<int:page>')
+def profile(page):
+    """顯示使用者資訊和 repositories 列表，包含分頁功能"""
     if 'user_id' in session:
         user = User.get_or_none(User.id == session['user_id'])
         if user:
-            # 獲取使用者 repositories
+            # 每頁顯示的 repositories 數量
+            per_page = 20
+
+            # 獲取使用者 repositories (分頁)
             github = OAuth2Session(GITHUB_CLIENT_ID, token=session['oauth_token'])
-            repos = github.get(f'https://api.github.com/users/{user.username}/repos').json()
-            return render_template('profile.html', user=user, repos=repos)
+            response = github.get(
+                f'https://api.github.com/users/{user.username}/repos?page={page}&per_page={per_page}')
+            repos = response.json()
+
+            # 計算總頁數
+            total_repos = int(response.headers.get('X-Total-Count', 0))
+            total_pages = (total_repos + per_page - 1) // per_page
+
+            return render_template('profile.html',
+                                   user=user,
+                                   repos=repos,
+                                   page=page,
+                                   total_pages=total_pages,
+                                   max=max,
+                                   min=min)  # 傳遞 max 函數給模板
     return redirect(url_for('index'))
 
-
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, ssl_context="adhoc")
